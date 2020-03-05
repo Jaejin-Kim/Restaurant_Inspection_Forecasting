@@ -1,0 +1,82 @@
+---
+title: "MDML_Final_WriteUp"
+author: "Shannon Kay, Jaejin Kim, & Jessica Spencer"
+date: "12/11/2019"
+output: html_document
+---
+
+Final Proj Requirements (from syllabus) ======================================
+Your projects must have a clearly stated and motivated research
+question, and utilize one or more applicable datasets. You must apply at least one supervised learning method and write a report (~10 pages) summarizing related literature, describing methods, detailing results and plots, and discussing the implications of your findings. 
+
+The final project will be graded according to the following rubric (/100):
+Clearly stated and motivated research question: 20 pts;
+Cleaning/compilation and description of data (utilizing at least one non-Kaggle dataset): 20 pts;
+Methods (description and utilization of at least one method): 20 pts;
+Description of results and implications, including limitations: 20 pts;
+Organization, clarity, and correctness of writing and plots: 15 pts;
+Literature review: 5 pts
+
+===================================================
+
+Introduction: 
+  Individual cities strive to standardize the ways they report information, which makes data analysis within cities possible more than ever before. As open data evolves from novelty into common practice, we wonder whether available city-level data will allow us to make comparisons across cities in areas where records were previously not considered transferrable. We believe that as cities standardize their data, it will become easier to identify common features and thus analyze the differences between cities.
+  We decided to test this theory using food inspection data in Chicago and New York. Our research question is, "Is there a difference in the pass/fail rate for restaurant inspections between Chicago and NYC when controlling for characteristics intuitively predictive of whether a restaurant passes or fails?" 
+
+Literature Review:
+  In New York City, random food inspections are done at least once a year.  A good grade on an inspection is an A, or a score between 0-14, while a C, a score greater than 28, documents that the restaurant had some health and safety violations.  These grade cards must be posted where people can see them when entering the restaurant. If a restaurant is given a bad grade on it's first inspection, the grade is not recorded, and the restaurant is given another opportunity to fix any violations. If a restaurant receives a C , then it is inspected more often.   A restaurant is closed down at the inspectors discretion when there has been too many health and safety violations for it to remain open to the public. For example, we found two restaurants in the dataset that were shut down with a score of 54, and 61. A critical violation is any violation that poses a significant risk to consumer health.
+  In Chicago, there is random food inspection at least once a year performed by the Department of Public Health's Food Protection Program. Restaurant inspections in Chicago are divided by categories. Category I facilities have a higher risk of leading to food-borne illness, and receive more inspections. Category II has only a median risk, and Category II has low risk.  All facilities are inspected at least once a year. 
+
+
+Research Question
+
+Data Sources: 
+1. Chicago Food Inspections Data
+2. NYC Restaurant Inspections Data
+3. IRS Individual Income Tax ZIP Code Data
+
+Data Cleaning: 
+
+Selecting Data
+
+  Our driving research question was how similar the pass/fail rates for restaurant inspections in Chicago and New York City are, and whether these rates vary based on the characteristics of the neighborhood the restaurant is located in. While we were hoping to find demographic data that could be joined to the restaurant datasets by zip code, since only New York City included census tracts in the restaurant data. While NYC Open Data has a dataset of Demographic Statistics by Zip Code through the Department of Youth and Community Development that contained information about gender, ethnicity, citizenship and public assistance percentages by zip code, we were unable to find an equivalent dataset for Chicago. Our search for some indicators that might inform us about the locale of the neighborhood led us to the IRS Individual Income Tax ZIP Code Data. This dataset provides tax return information by zip code, and was the only data source we could find that would link to both the Chicago and NYC datasets uniformly. 
+  
+Cleaning
+  
+  Creating a dataset that combines Chicago and New York City restaurant inspections with the IRS Individual Tax Zip Code Data involved multiple layers of data cleaning. The first choice we made was which years to analyze. Chicago's dataset contains inspections from 2010-2019, while the New York City data has inspections from 2013-2019. Since the data in NYC 2013 and 2014 is sparse, 2015-2019 provided the best available inspection data for both cities. However, the IRS Individual Tax Zip Code Data is only availble through 2017, so we chose 2015-2017 as our final criterion for year. 
+
+  Basic data cleaning needed to be done in Chicago because the dataset contained entities beyond restaurants, such as wholesale retailers, grocery stores, daycares, schools, and long-term care facilities. We chose to retain any inspections where the facility type includes bakery, cafe, restaurant, tavern, deli, ice cream, or paleteria. We removed inspections with the results "not ready", as these were generally restaurants that were preparing to open, and "out of business," which had closed. This produced a dataset of restaurants currently serving consumers that either passed or failed their inspections. We also limited inspection type to canvass (the routine yearly inspections in Chicago), complaint, license, and suspected food poisoning. 
+  
+  We then cleaned NYC data to ensure that we were looking at similar inspections in both cities. We determined that cycle-compliance, cycle-initial, cycle-re-inspection, and cycle-second-compliance were the most comparable to the Chicago food inspections. We excluded pre-permitting inspections, as we removed "not ready" results from the Chicago data, and eliminated administrative or particularly specific inspections that did not clearly map across datasets, such as those pertaining to Calorie Posting, Trans-Fat, or the Smoke-Free Air Act. We also chose to filter out inspections with scores that were not available or that were less than 0, as there should not be negative scores and the score variable determines whether a restaurant passes or fails in NYC. 
+  
+Feature Engineering
+  
+  For some variables, standardizing the variable across both cities was as simple as renaming them. Both cities had a unique ID for each restaurant. In Chicago, this ID was originally called "License" and in NYC it was originally "CAMIS". We decided to term the unique identifier Restaurant_ID. We standardized `AKA Name,` this was the restaurant name minus business abbreviations like LLC and INC in Chicago and "DBA," which is the name the restarant does business as in New York, as Name. Zip codes were also equivalently stored in both datasets, so we standardized the variable name as Zip_code. Creating a usable date simply involved changing character strings to date format using lubridate, and renaming those Date. Once this reformatting was complete, we easily generated Year, Month, and Weekday. While the names of Inspection Types were different between cities, this column existed similarly in both places. We did not change the types of inspections listed in either city, as this was characteristic was used to filter the comparable inspections for the final dataset but was nont used as a predictor in any of our models. 
+  
+  Considering the Chicago and NYC restaurant inspections are documented differently, we had to do some feature engineering to create symmetrical inspection predictors across both cities. After careful consideration, we chose to look at the number of violations per inspection, the presence of critical violations (those which indicate the most risk for consumer health), and inspection outcome. Initially, the Chicago data was presented as one inspection per row, while the NYC data was presented as one violation per row. Violations in Chicago were stored in a character string with separate violations separated by a vertical bar, so we calculated number of violations per inspection by unnesting them using the vertical bar as a delimiter and counting the number of unnested violations per inspection. In New York, we determined the equivalent violations per inspection through grouping by Name and Inspection Date and counting the number of rows that appeared for each unique Name-Date combination. Flags for critical violations already existed in the New York dataset as a binary indicator, so this only had to be created for Chicago. Reading the documentation for Chicago food inspections informed us that violation numbers 1-14 constitute critical violations. We separated these violation numbers from the Violations column while it was unnested to count the number of violations, and indicated a critical flag if violation number 1-14 appeared at any given inspection. Finally, we had to create a pass/fail outcome variable in both datasets. Inspection results in Chicago are "pass," "pass with conditions," "fail," or "no entry." We simplified this a binary pass/fail outcome where "pass" or "pass with conditions" were coded as pass, indicated by a 0, and "fail" or "no entry" were coded as fail, indicated by a 1. Inspections in NYC receive an "A" for a score of 0-14, a "B" for 15-27, and a "C" for higher than 28. We converted this into a binary outcome to match that created in Chicago by considering a score of less than 28 a passed inspection, or a 0, and a score greater than 28 a failed inspection, or a 1. 
+  
+  Once these pre-processing steps were completed, we selected Restaurant_ID, Name, City, Zip_code, Date, Year, Month, Weekday, Inspection_Type, Number_Violations, critical_flag and outcome from each and exported these dataframes to .csv. Code for pre-processing Chicago and NYC data can be found in preprocess_chicago.R and preprocess_nyc.R, respectively.
+  
+  To integrate a measure of socioeconomic status, we calculated the average income by zip code using the IRS Individual Income Tax ZIP Code Data. IRS data was provided by year and state, so we read in files for Illinois and New York states for 2015, 2016, and 2017. Rather than cleaning the entire file, we selected only relevant columns, as there was considerable information about tax return data that was irrelevant to our analysis. The final columns selected reflect the relevant information needed to compute both average Adjusted Gross Income and Average Total Income. After cleaning the dataset to one column per zip code, we intended to compute these average by zip code, as we initially focused on zip code as an indicator for location. However, we quickly realized that this variable would have a large number of levels if we used it as a categorical predictor in our analyses. To create slightly larger categories, we decided to group the zip codes into major neighborhoods for both cities. We used a few different sources to inform which zip code comprise the chosen neighborhoods, as well as our own intuition. This worked well since all three datasets had zip code as a common key. After identifying the zip codes that fall within major neighborhoods in each city, we filtered the IRS data (which was provided by state and year) from all of the zip codes in the state down to the ones for Chicago and New York City, and then created the neighborhood variable. We validated this with a list of the unique zip codes appearing in both restaurant datasets. We chose to eliminate some New York City zip codes that didn't make sense, such as the zip code for Riker's Island and La Guardia. Once the neighborhood variable was complete, we grouped by neighborhood and year, summed the adjusted gross income and total income for all of the zip codes in the neighborhood, and divided by the corresponding number of individual returns for each. These preprocessing steps can be found in preprocess_zip.codes.R, and the final data was exported to IRS_demographics_by_zipcode.csv.
+  
+  The last step in data cleaning was to join all three files together. We first combined the Chicago and NYC datasets into restaurant_data with a row bind, as these datasets had the same 12 columns and contained one row inspection. We then joined this dataset to the IRS demographics by zip code, which added columns for Neighborhood, average Adjusted Gross Income, and Average Total Income using zip code and year as the key.  
+  
+Methods:
+
+We began with three distinct binary classification methods. The first was regular binary logistic regression, where we ran two different models. The baseline model used only City as a predictor any overwhelming difference between Chicago and New York. The second logistic regression included all of the predictors resulting from the variable standardization and feature engineering decribed above: Neighborhood, Weekday, Month, critical flag, Number of Violations per Inspection, and average Adjusted Gross Income. 
+  
+  To select these models, we have decided to use Area Under the Curve, or AUC. We are training all models on a training set, which is 60% of our data, and predicting on our validation set, which is 20% of the data. The AUC can be defined as the probability that the fit model will score a randomly drawn positive sample higher than it would a randomly drawn negative sample.  In other words, this is the number of predicted true positives over the predicted false negatives. It's the probability of correctly ranking a "positive"-"negative" pair. AUC is very good when you have a skewed sample distribution. It also favors models that are discriminative, rather than representative, which means that it will do better at predicting on out-of-sample data. 
+  
+  The model with the best AUC we will then use to train on both the train and validation sets, and then see our prediction rates on our test set. 
+  
+Results:
+  
+  All the models we ran had very high AUC values, but random forest performed best on this measure, with 0.92.  GLM came close, with 0.86 AUC, and the SVM model was shortly behind with only 0.845 AUC. Pictured in the following section are the plots for these models:
+  
+  After we selected Random Forest, we ran it on both the training and the validation sets combined (60% + 20%).  Previously we had only ran it on the training set (60% of the data). The resulting performance was slightly larger, at 0.9227. This makes sense, because the model had more data to train on, so it became better at predictions. 
+  
+  The biggest limitations in our models were our ability to engineer features across cities.  While both cities have nearly identical structures for inspecting restaurants, they had very few intersecting data columns.  For example, NYC had cuisine, which would have been very interesting for predicitons, but Chicago did not. 
+  
+  
+  
+  
